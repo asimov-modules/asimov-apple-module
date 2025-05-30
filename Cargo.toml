@@ -17,13 +17,15 @@ categories = ["command-line-utilities", "text-processing"]
 publish = true
 
 [features]
-default = ["all", "std"]
-all = []
+default = ["all", "cli", "std"]
+all = ["tracing"]
+cli = ["asimov-module/cli", "std"]
 std = ["asimov-module/std"]
+tracing = ["asimov-module/tracing"]
 unstable = []
 
 [dependencies]
-asimov-module = { version = "25.0.0-dev.7", default-features = false }
+asimov-module = { version = "25.0.0-dev.9", default-features = false }
 
 [profile.release]
 opt-level = "z"
@@ -32,4 +34,5 @@ lto = "thin"
 
 [[bin]]
 name = "asimov-apple-speaker"
-path = "src/main.rs"
+path = "src/speaker/main.rs"
+required-features = ["cli"]
