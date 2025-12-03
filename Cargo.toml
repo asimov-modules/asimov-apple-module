@@ -25,7 +25,11 @@ tracing = ["asimov-module/tracing"]
 unstable = []
 
 [dependencies]
-asimov-module = { version = "25.0.0-dev.9", default-features = false }
+asimov-module = { version = "25", default-features = false }
+serde_json = { version = "1", features = ["preserve_order"] }
+html2text = "0.16.4"
+clap          = { version = "4.5", features = ["derive"] }
+clientele     = "0.3"
 
 [profile.release]
 opt-level = "z"
@@ -35,4 +39,9 @@ lto = "thin"
 [[bin]]
 name = "asimov-apple-speaker"
 path = "src/speaker/main.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "asimov-apple-notes-emitter"
+path = "src/emitter/notes.rs"
 required-features = ["cli"]
