@@ -20,8 +20,67 @@ cargo install asimov-apple-module
 
 ## 👉 Examples
 
+### `asimov-apple-speaker`
+
 ```bash
 echo "Hello, world" | asimov-apple-speaker
+```
+
+### `asimov-apple-notes-emitter`
+
+Extracts all Apple Notes and emits one JSON object per line (JSONL).
+
+Each note includes:
+
+ - `@id` (stable URN)
+ - `name` (title)
+ - `text` (cleaned plain text converted from HTML)
+ - `dateCreated`
+ - `dateModified`
+ - `isPartOf` (folder)
+ - `account` (iCloud, On My Mac, Gmail, etc.)
+ - `source`: "apple-notes"
+
+**Basic usage**
+```bash
+asimov-apple-notes-emitter
+```
+This prints JSONL to stdout, suitable for pipelines.
+
+**Pretty-print with jq**
+```bash
+asimov-apple-notes-emitter | jq .
+```
+
+**Control text wrapping**
+```bash
+asimov-apple-notes-emitter --wrap-width 120 | jq .
+```
+
+**Filter for a specific folder**
+```bash
+asimov-apple-notes-emitter | jq 'select(.isPartOf == "Work")'
+```
+
+**Save to file**
+```bash
+asimov-apple-notes-emitter > notes.jsonl
+```
+
+## 📦 JSON Output Example
+
+```json
+{
+  "@type": "CreativeWork",
+  "@id": "urn:apple:notes:note:12345-ABCDE",
+  "name": "Shopping List",
+  "text": "Milk\nEggs\nBread",
+  "dateCreated": "2025-01-20 13:30:00 +0000",
+  "dateModified": "2025-01-20 14:10:00 +0000",
+  "isPartOf": "Personal",
+  "account": "iCloud",
+  "source": "apple-notes"
+}
 ```
 
 ## 👨‍💻 Development
