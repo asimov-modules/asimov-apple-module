@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   ci:
-    uses: asimov-platform/actions/.github/workflows/ci-rust.yaml@master
+    uses: asimov-modules/.github/.github/workflows/ci-rust.yaml@master
     secrets: inherit
     permissions:
       actions: read
@@ -34,3 +34,4 @@ jobs:
       building_toolchain: 1.89.0
       build_linux: false
       build_windows: false
+
