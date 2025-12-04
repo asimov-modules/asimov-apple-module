@@ -36,10 +36,10 @@ opt-level = "z"
 strip = true
 lto = "thin"
 
-[[bin]]
-name = "asimov-apple-speaker"
-path = "src/speaker/main.rs"
-required-features = ["cli"]
+#[[bin]]
+#name = "asimov-apple-speaker"
+#path = "src/speaker/main.rs"
+#required-features = ["cli"]
 
 [[bin]]
 name = "asimov-apple-notes-emitter"

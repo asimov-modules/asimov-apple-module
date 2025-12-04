@@ -20,12 +20,6 @@ cargo install asimov-apple-module
 
 ## 👉 Examples
 
-### `asimov-apple-speaker`
-
-```bash
-echo "Hello, world" | asimov-apple-speaker
-```
-
 ### `asimov-apple-notes-emitter`
 
 Extracts all Apple Notes and emits one JSON object per line (JSONL).
