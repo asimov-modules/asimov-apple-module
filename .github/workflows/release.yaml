@@ -18,7 +18,7 @@ jobs:
     secrets: inherit
     with:
       create_release: true
-      update_homebrew_tap: false
+      update_homebrew_tap: true
       update_scoop_bucket: false
       update_crates_io: false
       rust_toolchain: 1.89.0
