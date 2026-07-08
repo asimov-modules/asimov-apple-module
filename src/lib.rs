@@ -77,5 +77,7 @@ mod tests {
         assert_eq!(output["@type"], "Person");
         assert_eq!(output["source"], "apple-contacts");
         assert_eq!(output["givenName"], "Jane");
+        assert_eq!(output["telephone"][0]["@type"], "ContactPoint");
+        assert_eq!(output["telephone"][0]["value"], "+5511986606176");
     }
 }

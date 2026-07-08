@@ -6,7 +6,6 @@ compile_error!("asimov-apple-calendar-emitter requires the 'std' feature");
 use asimov_module::SysexitsError::{self, *};
 use clap::Parser;
 use clientele::StandardOptions;
-use serde_json::json;
 use std::{
     error::Error as StdError,
     fmt, io,
@@ -24,10 +23,6 @@ enum CalendarError {
     OsaScriptFailed {
         status: ExitStatus,
         stderr: String,
-    },
-    CalendarParse {
-        context: &'static str,
-        message: String,
     },
     Json {
         context: &'static str,
@@ -47,12 +42,6 @@ impl fmt::Display for CalendarError {
             }
             CalendarError::OsaScriptFailed { .. } => {
                 write!(f, "failed to talk to Apple Calendar (osascript)")
-            }
-            CalendarError::CalendarParse { context, message } => {
-                write!(
-                    f,
-                    "failed to parse Apple Calendar output while {context}: {message}"
-                )
             }
             CalendarError::Json { context, .. } => {
                 write!(f, "failed to serialize JSON while {context}")
@@ -114,14 +103,6 @@ fn handle_error(err: &CalendarError, _flags: &StandardOptions) -> SysexitsError 
                 "osascript failure details"
             );
         }
-        CalendarError::CalendarParse { context, message } => {
-            asimov_module::tracing::debug!(
-                target: "asimov_apple_module::calendar_emitter",
-                %context,
-                %message,
-                "parse failure details"
-            );
-        }
         CalendarError::Json { context, source } => {
             asimov_module::tracing::debug!(
                 target: "asimov_apple_module::calendar_emitter",
@@ -143,7 +124,6 @@ fn handle_error(err: &CalendarError, _flags: &StandardOptions) -> SysexitsError 
     match err {
         CalendarError::Io { .. } => EX_IOERR,
         CalendarError::OsaScriptFailed { .. } => EX_UNAVAILABLE,
-        CalendarError::CalendarParse { .. } => EX_DATAERR,
         CalendarError::Json { .. } => EX_DATAERR,
         CalendarError::Jq { .. } => EX_DATAERR,
     }
@@ -194,6 +174,41 @@ fn run_emitter(_opts: &Options) -> CoreResult<()> {
     use std::io::{self, BufWriter, Write};
 
     const APPLESCRIPT: &str = r#"
+        on replaceText(theText, searchString, replacementString)
+            set oldDelimiters to AppleScript's text item delimiters
+            set AppleScript's text item delimiters to searchString
+            set textItems to text items of theText
+            set AppleScript's text item delimiters to replacementString
+            set replacedText to textItems as text
+            set AppleScript's text item delimiters to oldDelimiters
+            return replacedText
+        end replaceText
+
+        on jsonEscape(value)
+            if value is missing value then
+                return ""
+            end if
+            set escaped to value as text
+            set escaped to my replaceText(escaped, "\\", "\\\\")
+            set escaped to my replaceText(escaped, quote, "\\" & quote)
+            set escaped to my replaceText(escaped, return, "\\r")
+            set escaped to my replaceText(escaped, linefeed, "\\n")
+            set escaped to my replaceText(escaped, tab, "\\t")
+            return escaped
+        end jsonEscape
+
+        on jsonPair(keyName, keyValue)
+            return quote & keyName & quote & ":" & quote & my jsonEscape(keyValue) & quote
+        end jsonPair
+
+        on joinList(valuesList, delimiter)
+            set oldDelimiters to AppleScript's text item delimiters
+            set AppleScript's text item delimiters to delimiter
+            set joinedText to valuesList as text
+            set AppleScript's text item delimiters to oldDelimiters
+            return joinedText
+        end joinList
+
         set output to ""
         tell application "Calendar"
             set theCalendars to every calendar
@@ -207,21 +222,24 @@ fn run_emitter(_opts: &Options) -> CoreResult<()> {
                     set eventEnd to the end date of e
                     set eventLoc to the location of e
                     set eventDesc to the description of e
-                    set output to output & eventId & "|||"
-                    set output to output & eventTitle & "|||"
-                    set output to output & (eventStart as string) & "|||"
-                    set output to output & (eventEnd as string) & "|||"
-                    if eventLoc is missing value then
-                        set output to output & "" & "|||"
-                    else
-                        set output to output & eventLoc & "|||"
+
+                    set jsonFields to {my jsonPair("@type", "Event")}
+                    set end of jsonFields to my jsonPair("@id", "urn:apple:calendar:event:" & eventId)
+                    set end of jsonFields to my jsonPair("name", eventTitle)
+                    set end of jsonFields to my jsonPair("startDate", eventStart as string)
+                    set end of jsonFields to my jsonPair("endDate", eventEnd as string)
+                    set end of jsonFields to my jsonPair("isPartOf", calName)
+                    set end of jsonFields to my jsonPair("source", "apple-calendar")
+
+                    if eventLoc is not missing value and eventLoc is not "" then
+                        set end of jsonFields to my jsonPair("location", eventLoc)
                     end if
-                    if eventDesc is missing value then
-                        set output to output & "" & "|||"
-                    else
-                        set output to output & eventDesc & "|||"
+
+                    if eventDesc is not missing value and eventDesc is not "" then
+                        set end of jsonFields to my jsonPair("description", eventDesc)
                     end if
-                    set output to output & calName & "~~~"
+
+                    set output to output & "{" & my joinList(jsonFields, ",") & "}" & linefeed
                 end repeat
             end repeat
         end tell
@@ -276,111 +294,19 @@ fn run_emitter(_opts: &Options) -> CoreResult<()> {
 
     let mut count = 0usize;
 
-    for chunk in stdout.split("~~~").filter(|c| !c.trim().is_empty()) {
-        let mut parts = chunk.split("|||");
-
-        let id = parts
-            .next()
-            .ok_or_else(|| CalendarError::CalendarParse {
-                context: "reading event id",
-                message: "missing id field".to_string(),
-            })?
-            .trim();
-
-        let name = parts
-            .next()
-            .ok_or_else(|| CalendarError::CalendarParse {
-                context: "reading event title",
-                message: "missing title field".to_string(),
-            })?
-            .trim()
-            .to_string();
-
-        let start_date = parts
-            .next()
-            .ok_or_else(|| CalendarError::CalendarParse {
-                context: "reading start date",
-                message: "missing start date field".to_string(),
-            })?
-            .trim()
-            .to_string();
-
-        let end_date = parts
-            .next()
-            .ok_or_else(|| CalendarError::CalendarParse {
-                context: "reading end date",
-                message: "missing end date field".to_string(),
-            })?
-            .trim()
-            .to_string();
-
-        let location = parts
-            .next()
-            .ok_or_else(|| CalendarError::CalendarParse {
-                context: "reading location",
-                message: "missing location field".to_string(),
-            })?
-            .trim()
-            .to_string();
-
-        let description = parts
-            .next()
-            .ok_or_else(|| CalendarError::CalendarParse {
-                context: "reading description",
-                message: "missing description field".to_string(),
-            })?
-            .trim()
-            .to_string();
-
-        let calendar = parts
-            .next()
-            .ok_or_else(|| CalendarError::CalendarParse {
-                context: "reading calendar name",
-                message: "missing calendar field".to_string(),
-            })?
-            .trim()
-            .to_string();
-
-        if parts.next().is_some() {
-            return Err(CalendarError::CalendarParse {
-                context: "reading calendar event fields",
-                message: "unexpected extra field delimiter in event data".to_string(),
-            });
-        }
-
-        #[cfg(feature = "tracing")]
-        asimov_module::tracing::debug!(
-            target: "asimov_apple_module::calendar_emitter",
-            event_id = %id,
-            calendar = %calendar,
-            name = %name,
-            "emitting event"
-        );
-
-        let mut node = json!({
-            "@type": "Event",
-            "@id": format!("urn:apple:calendar:event:{id}"),
-            "name": name,
-            "startDate": start_date,
-            "endDate": end_date,
-            "isPartOf": calendar,
-            "source": "apple-calendar",
-        });
-
-        if !location.is_empty() {
-            node["location"] = json!(location);
-        }
-
-        if !description.is_empty() {
-            node["description"] = json!(description);
-        }
-
+    for line in stdout.lines().filter(|line| !line.trim().is_empty()) {
         let node = asimov_apple_module::calendar()
-            .filter_json(node)
+            .filter_json_str(line)
             .map_err(|e| CalendarError::Jq {
                 context: "filtering calendar event JSON",
                 source: e,
             })?;
+
+        #[cfg(feature = "tracing")]
+        asimov_module::tracing::debug!(
+            target: "asimov_apple_module::calendar_emitter",
+            "emitting event"
+        );
 
         serde_json::to_writer(&mut writer, &node)?;
         writer.write_all(b"\n").map_err(|e| CalendarError::Io {

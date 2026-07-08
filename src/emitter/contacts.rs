@@ -229,14 +229,14 @@ fn run_emitter(_opts: &Options) -> CoreResult<()> {
             if (!value) {
                 return null;
             }
-            if (!label) {
-                return value;
-            }
-            return {
+            const point = {
                 "@type": "ContactPoint",
-                "name": label,
                 "value": value,
             };
+            if (label) {
+                point.name = label;
+            }
+            return point;
         }
 
         const store = $.CNContactStore.alloc.init;
