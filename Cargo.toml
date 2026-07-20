@@ -2,7 +2,7 @@
 
 [package]
 name = "asimov-apple-module"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["ASIMOV Protocol <support@asimov.so>"]
 edition = "2024"
 #rust-version = "1.85"
@@ -20,7 +20,7 @@ publish = true
 default = ["all", "cli", "std"]
 all = ["tracing"]
 cli = ["asimov-module/cli", "std"]
-std = ["asimov-module/std"]
+std = ["asimov-module/std", "jq/std"]
 tracing = ["asimov-module/tracing"]
 unstable = []
 
@@ -30,6 +30,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 html2text = "0.16.4"
 clap          = { version = "4.5", features = ["derive"] }
 clientele     = "0.3"
+jq            = { version = "0.1", default-features = false, features = ["all"] }
 
 [profile.release]
 opt-level = "z"
@@ -44,4 +45,14 @@ lto = "thin"
 [[bin]]
 name = "asimov-apple-notes-emitter"
 path = "src/emitter/notes.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "asimov-apple-calendar-emitter"
+path = "src/emitter/calendar.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "asimov-apple-contacts-emitter"
+path = "src/emitter/contacts.rs"
 required-features = ["cli"]
